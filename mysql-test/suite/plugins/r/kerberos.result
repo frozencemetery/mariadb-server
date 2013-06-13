@@ -1,0 +1,12 @@
+INSTALL PLUGIN kerberos SONAME 'kerberos';
+CREATE USER test_kerberos IDENTIFIED VIA kerberos AS 'MTR_KERBEROS_UPN';
+SET GLOBAL kerberos_principal_name='MTR_KERBEROS_SPN';
+#
+# user principal is accepted, and authentication is successful.
+#
+SELECT USER();
+USER()
+test_kerberos@localhost
+# connection is persistent.
+DROP USER test_kerberos;
+UNINSTALL PLUGIN kerberos;

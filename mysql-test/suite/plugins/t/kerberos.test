@@ -1,0 +1,30 @@
+
+--source include/not_embedded.inc
+
+if (!$MTR_KERBEROS_ENABLED) {
+  skip No Kerberos auth plugin;
+}
+
+eval INSTALL PLUGIN kerberos SONAME 'kerberos';
+--replace_result $MTR_KERBEROS_UPN MTR_KERBEROS_UPN
+eval CREATE USER test_kerberos IDENTIFIED VIA kerberos AS '$MTR_KERBEROS_UPN';
+
+--replace_result $MTR_KERBEROS_SPN MTR_KERBEROS_SPN
+eval SET GLOBAL kerberos_principal_name='$MTR_KERBEROS_SPN';
+
+let $plugindir=`SELECT @@global.plugin_dir`;
+
+--echo #
+--echo # user principal is accepted, and authentication is successful.
+--echo #
+--exec echo "SELECT USER();" | $MYSQL_TEST -u test_kerberos --plugin-dir=$plugindir
+--echo # connection is persistent.
+
+# --echo #
+# --echo # athentication is unsuccessful
+# --echo #
+# --error 1
+# --exec $MYSQL_TEST -u test_kerberos --plugin-dir=$plugindir
+
+DROP USER test_kerberos;
+UNINSTALL PLUGIN kerberos;
