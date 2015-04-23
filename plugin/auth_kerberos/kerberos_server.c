@@ -260,12 +260,18 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   }
 
   /* server acquires credential */
-  major = gss_acquire_cred(&minor, service_name,
-                           GSS_C_INDEFINITE, /* time_req, ALAP */
-                           GSS_C_NO_OID_SET, /* desired_mechs */
-                           GSS_C_ACCEPT, /* cred_usage, ACCEPT only */
-                           &cred, NULL, /* actual_mechs */
-                           NULL); /* time_rec */
+  gss_key_value_element_desc element = {
+    "keytab",
+    "/var/lib/mysql/mysql.keytab",
+  };
+  gss_key_value_set_desc cred_store =
+  {
+    1,
+    &element,
+  };
+  major = gss_acquire_cred_from(&minor, service_name, GSS_C_INDEFINITE,
+                               GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred_store,
+                               &cred, NULL, NULL);
 
   /* gss_acquire_cred error checking */
   if (GSS_ERROR(major))
