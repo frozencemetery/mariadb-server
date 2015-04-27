@@ -32,10 +32,12 @@
 
 /* plugin global variables */
 char *kerberos_principal_name; /* system-wise declaration for spn */
+char *kerberos_keytab_path;
 /**
  * underlying storage for Kerberos service principal name system variable
  */
 static char kerberos_spn_storage[PRINCIPAL_NAME_LEN];
+static char kerberos_ktpath_storage[PRINCIPAL_NAME_LEN]; /* TODO */
 
 #ifdef _WIN32
 static int sspi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
@@ -260,18 +262,22 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   }
 
   /* server acquires credential */
-  gss_key_value_element_desc element = {
-    "keytab",
-    "/var/lib/mysql/mysql.keytab",
-  };
-  gss_key_value_set_desc cred_store =
+  if (kerberos_keytab_path[0] != '\0')
   {
-    1,
-    &element,
-  };
-  major = gss_acquire_cred_from(&minor, service_name, GSS_C_INDEFINITE,
-                               GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred_store,
-                               &cred, NULL, NULL);
+    /* it's been set */
+    gss_key_value_element_desc element = { "keytab", kerberos_keytab_path, };
+    gss_key_value_set_desc cred_store = { 1, &element, };
+    major = gss_acquire_cred_from(&minor, service_name, GSS_C_INDEFINITE,
+                                 GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred_store,
+                                 &cred, NULL, NULL);
+  }
+  else
+  {
+    /* if there's no keytab set, try to use the env var */
+    major = gss_acquire_cred(&minor, service_name, GSS_C_INDEFINITE,
+                             GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred, NULL,
+                             NULL);    
+  }
 
   /* gss_acquire_cred error checking */
   if (GSS_ERROR(major))
@@ -683,17 +689,44 @@ static void update_principal_name(UNUSED(MYSQL_THD thd),
   kerberos_principal_name = kerberos_spn_storage;
 }
 
+static int verify_keytab_path(UNUSED(MYSQL_THD thd),
+    UNUSED(struct st_mysql_sys_var UNUSED(*var)), UNUSED(void *save),
+    UNUSED(struct st_mysql_value *value)) {
+  char path_buf[PRINCIPAL_NAME_LEN];
+  int buf_len= PRINCIPAL_NAME_LEN;
+
+  const char *ptr= value->val_str(value, path_buf, &buf_len);
+
+  /* paths must be fully-qualified */
+  if (ptr[0] == '/' && !access(ptr, R_OK))
+  {
+    strncpy(kerberos_ktpath_storage, ptr, PRINCIPAL_NAME_LEN);
+    return 0;
+  }
+  return 1;
+}
+
+static void update_keytab_path(UNUSED(MYSQL_THD thd),
+    UNUSED(struct st_mysql_sys_var* var), UNUSED(void * var_ptr),
+    UNUSED(const void * save))
+{
+  kerberos_keytab_path= kerberos_ktpath_storage;
+}
+
 /* system variable */
 static MYSQL_SYSVAR_STR(principal_name, kerberos_principal_name,
                         PLUGIN_VAR_RQCMDARG,
                         "Service principal name in Kerberos authentication.",
-                        verify_principal_name, /* check function */
-                        update_principal_name, /* update function */
-                        "");
+                        verify_principal_name, update_principal_name, "");
+static MYSQL_SYSVAR_STR(keytab_path, kerberos_keytab_path,
+                        PLUGIN_VAR_RQCMDARG,
+                        "Location of Kerberos keytab.",
+                        verify_keytab_path, update_keytab_path, "");
 
-static struct st_mysql_sys_var *system_variables[] = {MYSQL_SYSVAR(
-                                                          principal_name),
-                                                      NULL};
+static struct st_mysql_sys_var *system_variables[] =
+{
+  MYSQL_SYSVAR(principal_name), MYSQL_SYSVAR(keytab_path), NULL,
+};
 
 /* register Kerberos authentication plugin */
 static struct st_mysql_auth server_handler =
