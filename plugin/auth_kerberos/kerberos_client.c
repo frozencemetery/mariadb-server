@@ -38,7 +38,7 @@
  * set client error message
  */
 static void set_krb_client_auth_error(MYSQL *, int, const char *,
-                                      const char *, ...);
+                                      const char *);
 
 #ifdef _WIN32
 static int sspi_kerberos_auth_client(const char *spn, MYSQL *mysql,
@@ -366,20 +366,17 @@ static int kerberos_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
  * Param:
  *  mysql    connection handle
  *  errno    extended error number
- *  format   error message template
- *  ...      variable argument list
+ *  errmsg   error message
  */
 static void set_krb_client_auth_error(MYSQL *mysql, int errcode,
                                       const char *sqlstate,
-                                      const char *format, ...)
+                                      const char *errmsg)
 {
   NET *net = &mysql->net;
   va_list args;
 
   net->last_errno = errcode;
-  va_start(args, format);
-  vsnprintf(net->last_error, sizeof(net->last_error) - 1, format, args);
-  va_end(args);
+  strncpy(net->last_error, errmsg, sizeof(net->last_error) - 1);
   memcpy(net->sqlstate, sqlstate, sizeof(net->sqlstate));
 }
 
