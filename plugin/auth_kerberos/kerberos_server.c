@@ -632,7 +632,7 @@ static int initialize_principal_name(void *unused)
 static int verify_principal_name(UNUSED(MYSQL_THD thd),
                                  UNUSED(struct st_mysql_sys_var UNUSED(*var)),
                                  UNUSED(void *save),
-                                 UNUSED(struct st_mysql_value *value))
+                                 struct st_mysql_value *value)
 {
   char upn_buf[PRINCIPAL_NAME_LEN];
   int buf_len = PRINCIPAL_NAME_LEN;
@@ -691,7 +691,7 @@ static void update_principal_name(UNUSED(MYSQL_THD thd),
 
 static int verify_keytab_path(UNUSED(MYSQL_THD thd),
     UNUSED(struct st_mysql_sys_var UNUSED(*var)), UNUSED(void *save),
-    UNUSED(struct st_mysql_value *value)) {
+    struct st_mysql_value *value) {
   char path_buf[PRINCIPAL_NAME_LEN];
   int buf_len= PRINCIPAL_NAME_LEN;
 
