@@ -535,33 +535,22 @@ static BOOLEAN LogonAsNetworkService(void)
 
 static int initialize_principal_name(void *unused)
 {
-  int ret = 0;
   ULONG len = sizeof(kerberos_spn_storage);
   CHAR *computer_name = NULL;
   CHAR *domain_name = NULL;
-  BOOLEAN api_rc = TRUE;
-
-#define KRB_AUTH_SERVER_INIT_ERROR(ret, msg)                                 \
-  do                                                                         \
-  {                                                                          \
-    ret = -1;                                                                \
-    my_error(ret, MF_ERROR, msg);                                            \
-  } while (0)
 
   /* principal name has already been set */
   if (kerberos_principal_name && kerberos_principal_name[0])
-    return ret;
+    return 0;
 
-  api_rc = GetUserNameEx(NameUserPrincipal, kerberos_spn_storage, &len);
-  if (!api_rc)
+  if (!GetUserNameEx(NameUserPrincipal, kerberos_spn_storage, &len))
   {
     switch (GetLastError())
     {
     case ERROR_NO_SUCH_DOMAIN:
-      ret = CR_ERROR;
       my_error(KRB_SERVER_AUTH_ERROR, MF_WARNING,
                "Kerberos: the domain controller is not up.");
-      break;
+      return CR_ERROR;
     case ERROR_NONE_MAPPED:
       /* cannot find UPN for logon user */
       /*
@@ -570,46 +559,40 @@ static int initialize_principal_name(void *unused)
        */
       if (LogonAsNetworkService())
       {
-        BOOLEAN done = TRUE;
-
         len = PRINCIPAL_NAME_LEN;
         computer_name = (CHAR *) calloc(len, sizeof(CHAR));
-        done = (computer_name == NULL);
-        if (done &&(done = GetComputerNameEx(ComputerNameDnsHostname,
-                                             computer_name, &len)))
-        {
-          len = PRINCIPAL_NAME_LEN;
-          domain_name = (CHAR *) calloc(len, sizeof(CHAR));
-          done = (domain_name == NULL);
-          if (done &&(done = GetComputerNameEx(ComputerNameDnsDomain,
-                                               domain_name, &len)))
-          {
-            sprintf_s(kerberos_spn_storage, sizeof(kerberos_spn_storage),
-                      "%s$@%s", computer_name, domain_name);
-          }
-        }
+        if (!computer_name ||
+            !GetComputerNameEx(ComputerNameDnsHostname, computer_name, &len))
+          goto nm_fail;
 
-        /* Release heap memory */
-        if (computer_name)
+        len = PRINCIPAL_NAME_LEN;
+        domain_name = (CHAR *) calloc(len, sizeof(CHAR));
+        if (!domain_name ||
+            !GetComputerNameEx(ComputerNameDnsDomain, domain_name, &len))
+          goto nm_fail;
+
+        sprintf_s(kerberos_spn_storage, sizeof(kerberos_spn_storage),
+                  "%s$@%s", computer_name, domain_name);
+        kerberos_principal_name = kerberos_spn_storage;
+        free(computer_name);
+        free(domain_name);
+        break;
+
+      nm_fail:
+        if (computer_name) {
+          if (domain_name)
+            free(domain_name);
           free(computer_name);
-        if (domain_name)
-          free(domain_name);
-
-        if (!done)
-        {
-          KRB_AUTH_SERVER_INIT_ERROR(ret, "Kerberos: the name is not "
-                                          "available in specific format.");
         }
-        else
-        {
-          /* redirect the variable */
-          kerberos_principal_name = kerberos_spn_storage;
-        }
+        my_error(-1, MF_ERROR,
+                 "Kerberos: the name is not available in specific format.");
+        return -1;
       }
       else
       {
-        KRB_AUTH_SERVER_INIT_ERROR(ret, "Kerberos: the name is not available "
-                                        "in specific format.");
+        my_error(-1, MF_ERROR,
+                 "Kerberos: the name is not available in specific format.");
+        return -1;
       }
       break;
     default:
@@ -622,10 +605,7 @@ static int initialize_principal_name(void *unused)
     kerberos_principal_name = kerberos_spn_storage;
   }
 
-/* localize macro KRB_AUTH_SERVER_INIT_ERROR */
-#undef KRB_AUTH_SERVER_INIT_ERROR
-
-  return ret;
+  return 0;
 }
 #endif /* _WIN32 */
 
