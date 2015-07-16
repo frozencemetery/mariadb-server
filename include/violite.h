@@ -25,7 +25,9 @@
 #include "my_net.h"   /* needed because of struct in_addr */
 #include <mysql/psi/mysql_socket.h>
 
-/* Simple vio interface in C;  The functions are implemented in violite.c */
+/* Simple vio interface in C; The functions are implemented in the
+ * top-level vio/ directory.
+ */
 
 #ifdef	__cplusplus
 extern "C" {
