@@ -160,6 +160,44 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     DBUG_VOID_RETURN;
   }
 #endif /* HAVE_OPENSSL */
+#ifdef HAVE_GSSAPI
+  vio->gss_ctxt = GSS_C_NO_CONTEXT;
+  if (type == VIO_TYPE_GSSAPI)
+  {
+    if (!vio->read_buffer)
+    {
+      /* GSSAPI needs this buffer to do decryption */
+      vio->read_buffer =my_malloc(VIO_READ_BUFFER_SIZE, MYF(MY_WME));
+      if (!vio->read_buffer)
+      {
+        printf("TODO(rharwood) fail REALLY hard\n");
+      }
+      flags |= VIO_BUFFERED_READ;
+    }
+    /* see note in vio_gss_read for how this works */
+    vio->read_pos       =vio->read_end = vio->read_buffer;
+
+    vio->viodelete      =vio_delete;
+    vio->vioerrno       =vio_errno;
+    vio->read           =vio_gss_read;
+    vio->write          =vio_gss_write;
+    vio->fastsend       =vio_fastsend;
+    vio->viokeepalive   =vio_keepalive;
+    vio->should_retry   =vio_should_retry;
+    vio->was_timeout    =vio_was_timeout;
+    vio->vioclose       =vio_gss_close;
+    vio->peer_addr      =vio_peer_addr;
+    vio->vioblocking    =vio_blocking;
+    vio->is_blocking    =vio_is_blocking;
+    vio->io_wait        =vio_io_wait;
+    vio->is_connected   =vio_is_connected;
+    vio->has_data       =vio_gss_has_data;
+    vio->shutdown       =vio_socket_shutdown;
+    vio->timeout        =vio_socket_timeout;
+    DBUG_VOID_RETURN;
+  }
+#endif /* HAVE_GSSAPI */
+  /* type == VIO_TYPE_TCPIP */
   vio->viodelete        =vio_delete;
   vio->vioerrno         =vio_errno;
   vio->read=            (flags & VIO_BUFFERED_READ) ? vio_read_buff : vio_read;

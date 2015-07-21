@@ -40,7 +40,7 @@ typedef struct st_vio Vio;
 enum enum_vio_type
 {
   VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
-  VIO_TYPE_SSL, VIO_TYPE_SHARED_MEMORY
+  VIO_TYPE_SSL, VIO_TYPE_SHARED_MEMORY, VIO_TYPE_GSSAPI
 };
 
 /**
@@ -289,6 +289,9 @@ struct st_vio
   DWORD thread_id; /* Used on XP only by vio_shutdown() */
   DWORD read_timeout_ms;
   DWORD write_timeout_ms;
+#endif
+#ifdef HAVE_GSSAPI
+  gss_ctx_id_t gss_ctxt;
 #endif
 };
 #endif /* vio_violite_h_ */
