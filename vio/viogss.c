@@ -16,34 +16,36 @@
   PERFORMANCE OF THIS SOFTWARE.
 */
 
-#ifdef HAVE_GSSAPI
-
+/* #include <config.h> */
 #include "vio_priv.h"
+#include "my_context.h"
+#include <mysql_async.h>
 
-int vio_gss_error(Vio *me)
-{
-  printf("TODO(rharwood) love me!\n");
-}
+#ifdef HAVE_GSSAPI
 
 /* Always buffered */
 size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
 {
   /*
-    vio->read_buf: start of buffer
+    vio->read_buffer: start of buffer
     vio->read_pos: start of encrypted data
     vio->read_end: current insertion point
    */
-  ssize_t len, missing, packet_size;
+  ssize_t len, missing;
+  size_t packet_size;
   OM_uint32 major, minor;
   gss_buffer_desc input, output;
+  int conf;
+
+  DBUG_ENTER("vio_gss_read");
   
   if (vio_gss_has_data(me))
   {
     /* a packet is decrypted and ready to go */
-    size_t get = MY_MIN(n, me->read_pos - me->read_buf);
-    memcpy(buf, me->read_buf, get);
-    memmove(me->read_buf, me->read_buf + get,
-            me->read_end - me->read_buf - get);
+    size_t get = MY_MIN(n, (size_t) (me->read_pos - me->read_buffer));
+    memcpy(buf, me->read_buffer, get);
+    memmove(me->read_buffer, me->read_buffer + get,
+            me->read_end - me->read_buffer - get);
     me->read_pos -= get;
     me->read_end -= get;
     DBUG_RETURN(get);
@@ -53,7 +55,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   if (missing > 0)
   {
     /* we need to get the length */
-    len = vio_read(me, me->read_end, missing);
+    len = vio_read(me, (uchar *) me->read_end, missing);
     DBUG_ASSERT(len <= missing);
     if (len < 0)
     {
@@ -77,7 +79,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   if (missing > 0)
   {
     /* try to get the rest of the packet */
-    len = vio_read(me, me->read_end, missing);
+    len = vio_read(me, (uchar *) me->read_end, missing);
     DBUG_ASSERT(len <= missing);
     if (len < 0)
     {
@@ -90,7 +92,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   }
 
   /* we now have a full packet ready to decrypt */
-  input.value = me->read_buf + 4;
+  input.value = me->read_buffer + 4;
   input.length = packet_size;
   major = gss_unwrap(&minor, me->gss_ctxt, &input, &output, &conf, NULL);
   if (GSS_ERROR(major))
@@ -102,9 +104,9 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     printf("TODO(rharwood) like, *really* hard\n");
   }
 
-  DBUG_ASSERT(output.length < packet_size + 4);
-  memcpy(me->read_buf, output.value, output.length);
-  me->read_pos = me->read_end = me->read_buf + output.length;
+  DBUG_ASSERT(output.length <= packet_size + 4);
+  memcpy(me->read_buffer, output.value, output.length);
+  me->read_pos = me->read_end = me->read_buffer + output.length;
   gss_release_buffer(&minor, &output);
 
   /* recur at most once; "free" since it's a tail call */
@@ -119,8 +121,16 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
   uchar *send_buf;
   uint32 packetlen;
 
-  /* pre-compute what this looks like encrypted */  
-  input.value = buf;
+  DBUG_ENTER("vio_gss_write");
+  
+  /* 
+     Pre-compute what this looks like encrypted.
+
+     The type of a gss_buffer_t does not allow specification of the input
+     buffer as const, but it will not modify the contents of this buffer as
+     per 2744.
+  */
+  input.value = (uchar *) buf;
   input.length = len;
 
   major = gss_wrap(&minor, me->gss_ctxt, 1, GSS_C_QOP_DEFAULT, &input,
@@ -161,17 +171,24 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
 
 int vio_gss_close(Vio *me)
 {
-  if (!vio)
-    return;
-  else if (vio->gss_ctxt != GSS_C_NO_CONTEXT)
-    (void) gss_delete_sec_context(&minor, &vio->gss_ctxt, GSS_C_NO_BUFFER);
+  OM_uint32 minor;
+
+  DBUG_ENTER("vio_gss_close");
+  
+  if (me->gss_ctxt != GSS_C_NO_CONTEXT)
+  {
+    gss_delete_sec_context(&minor, &me->gss_ctxt, GSS_C_NO_BUFFER);
+    me->gss_ctxt = GSS_C_NO_CONTEXT;
+  }
 
   DBUG_RETURN(vio_close(me));
 }
 
 my_bool vio_gss_has_data(Vio *me)
 {
-  return me->read_buf != me->read_pos;
+  DBUG_ENTER("vio_gss_has_data");
+
+  return me->read_buffer != me->read_pos;
 }
 
 #endif /* HAVE_GSSAPI */

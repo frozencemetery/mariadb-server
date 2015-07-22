@@ -124,6 +124,10 @@ int vio_getnameinfo(const struct sockaddr *sa,
                     char *port, size_t port_size,
                     int flags);
 
+#ifdef HAVE_GSSAPI
+#include <gssapi/gssapi.h>
+#endif /* HAVE_GSSAPI */
+
 #ifdef HAVE_OPENSSL
 #include <openssl/opensslv.h>
 #if OPENSSL_VERSION_NUMBER < 0x0090700f
