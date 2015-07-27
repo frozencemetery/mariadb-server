@@ -184,6 +184,12 @@ static LEX_STRING old_password_plugin_name= {
   C_STRING_WITH_LEN("mysql_old_password")
 };
 
+#ifdef HAVE_GSSAPI
+static LEX_STRING kerberos_plugin_name= {
+  C_STRING_WITH_LEN("mysql_kerberos")
+};
+#endif
+
 /// @todo make it configurable
 LEX_STRING *default_auth_plugin_name= &native_password_plugin_name;
 
@@ -206,6 +212,9 @@ LEX_STRING current_user_and_current_role= { C_STRING_WITH_LEN("*current_user_and
 static plugin_ref old_password_plugin;
 #endif
 static plugin_ref native_password_plugin;
+#ifdef HAVE_GSSAPI
+static plugin_ref kerberos_plugin;
+#endif
 
 /* Classes */
 
@@ -275,7 +284,8 @@ public:
     dst->x509_issuer= safe_strdup_root(root, x509_issuer);
     dst->x509_subject= safe_strdup_root(root, x509_subject);
     if (plugin.str == native_password_plugin_name.str ||
-        plugin.str == old_password_plugin_name.str)
+        plugin.str == old_password_plugin_name.str ||
+        plugin.str == kerberos_plugin_name.str)
       dst->plugin= plugin;
     else
       dst->plugin.str= strmake_root(root, plugin.str, plugin.length);
@@ -942,6 +952,10 @@ static char *fix_plugin_ptr(char *name)
                     old_password_plugin_name.str) == 0)
     return old_password_plugin_name.str;
   else
+  if (my_strcasecmp(system_charset_info, name,
+                    kerberos_plugin_name.str) == 0)
+      return kerberos_plugin_name.str;
+  else
     return name;
 }
 
@@ -967,6 +981,10 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   if (my_strcasecmp(system_charset_info, user->plugin.str,
                     old_password_plugin_name.str) == 0)
     user->plugin= old_password_plugin_name;
+  else
+  if (my_strcasecmp(system_charset_info, user->plugin.str,
+                    kerberos_plugin_name.str) == 0)
+    user->plugin= kerberos_plugin_name;
   else
     return true;
 
@@ -1117,8 +1135,16 @@ bool acl_init(bool dont_read_acl_tables)
            &native_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
   old_password_plugin= my_plugin_lock_by_name(0,
            &old_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
+#ifdef HAVE_GSSAPI
+  kerberos_plugin= my_plugin_lock_by_name(0,
+           &kerberos_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
+#endif
 
-  if (!native_password_plugin || !old_password_plugin)
+  if (!native_password_plugin || !old_password_plugin
+#ifdef HAVE_GSSAPI
+      || !kerberos_plugin
+#endif
+    )
     DBUG_RETURN(1);
 
   if (dont_read_acl_tables)
@@ -1681,6 +1707,9 @@ void acl_free(bool end)
   my_hash_free(&acl_roles_mappings);
   plugin_unlock(0, native_password_plugin);
   plugin_unlock(0, old_password_plugin);
+#ifdef HAVE_GSSAPI
+  plugin_unlock(0, kerberos_plugin);
+#endif
   if (!end)
     acl_cache->clear(1); /* purecov: inspected */
   else
@@ -2807,7 +2836,11 @@ bool change_password(THD *thd, LEX_USER *user)
 
   /* update loaded acl entry: */
   if (acl_user->plugin.str == native_password_plugin_name.str ||
-      acl_user->plugin.str == old_password_plugin_name.str)
+      acl_user->plugin.str == old_password_plugin_name.str
+#ifdef HAVE_GSSAPI
+      || acl_user->plugin.str == kerberos_plugin_name.str
+#endif
+    )
   {
     acl_user->auth_string.str= strmake_root(&acl_memroot, user->password.str, user->password.length);
     acl_user->auth_string.length= user->password.length;
@@ -7980,7 +8013,11 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
     global.append ('\'');
 
     if (acl_user->plugin.str == native_password_plugin_name.str ||
-        acl_user->plugin.str == old_password_plugin_name.str)
+        acl_user->plugin.str == old_password_plugin_name.str
+#ifdef HAVE_GSSAPI
+        || acl_user->plugin.str == kerberos_plugin_name.str
+#endif
+      )
     {
       if (acl_user->auth_string.length)
       {
@@ -10140,7 +10177,11 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   if(au)
   {
     if (au->plugin.str != native_password_plugin_name.str &&
-        au->plugin.str != old_password_plugin_name.str)
+        au->plugin.str != old_password_plugin_name.str
+#ifdef HAVE_GSSAPI
+        && au->plugin.str != kerberos_plugin_name.str
+#endif
+      )
       combo->plugin= au->plugin;
     combo->auth= au->auth_string;
   }
@@ -11469,12 +11510,19 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   /* user account requires non-default plugin and the client is too old */
   if (mpvio->acl_user->plugin.str != native_password_plugin_name.str &&
       mpvio->acl_user->plugin.str != old_password_plugin_name.str &&
+#ifdef HAVE_GSSAPI
+      mpvio->acl_user->plugin.str != kerberos_plugin_name.str &&
+#endif
       !(mpvio->thd->client_capabilities & CLIENT_PLUGIN_AUTH))
   {
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               native_password_plugin_name.str));
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               old_password_plugin_name.str));
+#ifdef HAVE_GSSAPI
+    DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
+                              kerberos_plugin_name.str));
+#endif
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
     general_log_print(mpvio->thd, COM_CONNECT, ER(ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
@@ -12208,6 +12256,10 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
 
   if (auth_plugin_name->str == native_password_plugin_name.str)
     plugin= native_password_plugin;
+#ifdef HAVE_GSSAPI
+  else if (auth_plugin_name->str == kerberos_plugin_name.str)
+    plugin= kerberos_plugin;
+#endif
 #ifndef EMBEDDED_LIBRARY
   else if (auth_plugin_name->str == old_password_plugin_name.str)
     plugin= old_password_plugin;
@@ -12739,6 +12791,16 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   return CR_AUTH_HANDSHAKE;
 }
 
+#ifdef HAVE_GSSAPI
+static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
+                                 MYSQL_SERVER_AUTH_INFO *info)
+{
+  printf("TODO(rharwood): actually authenticate users :|\n");
+  return CR_AUTH_HANDSHAKE;
+}
+
+#endif
+
 static struct st_mysql_auth native_password_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
@@ -12752,6 +12814,15 @@ static struct st_mysql_auth old_password_handler=
   old_password_plugin_name.str,
   old_password_authenticate
 };
+
+#ifdef HAVE_GSSAPI
+static struct st_mysql_auth kerberos_handler=
+{
+  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  kerberos_plugin_name.str,
+  kerberos_authenticate
+}
+#endif
 
 maria_declare_plugin(mysql_password)
 {
@@ -12783,6 +12854,23 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
   MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
+},
+#ifdef HAVE_GSSAPI
+{
+  MYSQL_AUTHENTICATION_PLUGIN,                  /* type constant    */
+  &kerberos_handler,                            /* type descriptor  */
+  kerberos_plugin_name.str,                     /* Name             */
+  "Shuang Qiu, Robbie Harwood",                 /* Author           */
+  "Kerberos-based aquthentication",             /* Description      */
+  PLUGIN_LICENSE_GPL,                           /* License          */
+  NULL,                                         /* Init function    */
+  NULL,                                         /* Deinit function  */
+  0x0100,                                       /* Version (1.0)    */
+  NULL,                                         /* status variables */
+  kerberos_system_variables,                    /* system variables */
+  "1.0",                                        /* String version   */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 }
+#endif
 maria_declare_plugin_end;
 
