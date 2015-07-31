@@ -58,13 +58,8 @@
 #include "sql_plugin_compat.h"
 
 #ifdef HAVE_GSSAPI
-#define PRINCIPAL_NAME_LEN 256
-
-static char kerberos_spn_storage[PRINCIPAL_NAME_LEN];
-static char kerberos_ktpath_storage[PRINCIPAL_NAME_LEN];
-
-char *kerberos_principal_name; /* system-wide declaration for spn */
-char *kerberos_keytab_path;
+char *kerberos_principal_name_ptr;
+char *kerberos_keytab_path_ptr;
 #endif
 
 bool mysql_user_table_is_in_short_password_format= false;
@@ -12833,106 +12828,6 @@ static struct st_mysql_auth kerberos_handler=
   kerberos_authenticate
 };
 
-static int verify_principal_name(
-  MYSQL_THD thd,
-  struct st_mysql_sys_var *var,
-  void *save,
-  struct st_mysql_value *value)
-{
-  char upn_buf[PRINCIPAL_NAME_LEN];
-  int buf_len = PRINCIPAL_NAME_LEN;
-  /* UPN should in the form `user@domain` or `user/host@domain` */
-  const char *ptr = value->val_str(value, upn_buf, &buf_len);
-  const char *itr = ptr;
-
-#define FWD_ITER(iter)                                                       \
-  while (*iter && (isalpha(*iter) || (*itr) == '.'))                         \
-  iter++
-  /* user part */
-  if (*itr && isalpha(*itr))
-  {
-    FWD_ITER(itr);
-  }
-  else
-  {
-    /* name part is required */
-    return 1;
-  }
-
-  /* host part, which is optional */
-  if (*itr && *itr == '/')
-  {
-    itr++;
-    FWD_ITER(itr);
-  }
-
-  /* domain part */
-  if (*itr && *itr == '@')
-  {
-    itr++;
-    FWD_ITER(itr);
-  }
-  else
-  {
-    /* domain part is required */
-    return 1;
-  }
-
-  /* if validated return 0, or any non-zero value */
-  if (!*itr)
-  {
-    strncpy(kerberos_spn_storage, ptr, PRINCIPAL_NAME_LEN);
-  }
-  return *itr;
-}
-
-static void update_principal_name(MYSQL_THD thd,
-                                  struct st_mysql_sys_var *var,
-                                  void *var_ptr,
-                                  const void *save)
-{
-  kerberos_principal_name = kerberos_spn_storage;
-}
-
-static int verify_keytab_path(MYSQL_THD thd,
-    struct st_mysql_sys_var *var, void *save,
-    struct st_mysql_value *value) {
-  char path_buf[PRINCIPAL_NAME_LEN];
-  int buf_len= PRINCIPAL_NAME_LEN;
-
-  const char *ptr= value->val_str(value, path_buf, &buf_len);
-
-  /* paths must be fully-qualified */
-  if (ptr[0] == '/' && !access(ptr, R_OK))
-  {
-    strncpy(kerberos_ktpath_storage, ptr, PRINCIPAL_NAME_LEN);
-    return 0;
-  }
-  return 1;
-}
-
-static void update_keytab_path(MYSQL_THD thd,
-    struct st_mysql_sys_var* var, void * var_ptr,
-    const void * save)
-{
-  kerberos_keytab_path= kerberos_ktpath_storage;
-}
-
-static MYSQL_SYSVAR_STR(principal_name, kerberos_principal_name,
-                        PLUGIN_VAR_RQCMDARG,
-                        "Service principal name in Kerberos authentication.",
-                        verify_principal_name, update_principal_name, "");
-static MYSQL_SYSVAR_STR(keytab_path, kerberos_keytab_path,
-                        PLUGIN_VAR_RQCMDARG,
-                        "Location of Kerberos keytab.",
-                        verify_keytab_path, update_keytab_path, "");
-
-struct st_mysql_sys_var *kerberos_system_variables[]=
-{
-  MYSQL_SYSVAR(principal_name),
-  MYSQL_SYSVAR(keytab_path),
-  NULL
-};
 #endif
 
 maria_declare_plugin(mysql_password)
@@ -12978,10 +12873,9 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* Deinit function  */
   0x0100,                                       /* Version (1.0)    */
   NULL,                                         /* status variables */
-  kerberos_system_variables,                    /* system variables */
+  NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
   MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 }
 #endif
 maria_declare_plugin_end;
-
