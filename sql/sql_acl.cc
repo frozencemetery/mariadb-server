@@ -191,7 +191,7 @@ static LEX_STRING old_password_plugin_name= {
 
 #ifdef HAVE_GSSAPI
 static LEX_STRING kerberos_plugin_name= {
-  C_STRING_WITH_LEN("mysql_kerberos")
+  C_STRING_WITH_LEN("kerberos")
 };
 #endif
 
@@ -12804,6 +12804,12 @@ static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
   return CR_AUTH_HANDSHAKE;
 }
 
+static struct st_mysql_auth kerberos_handler=
+{
+  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  kerberos_plugin_name.str,
+  kerberos_authenticate
+};
 #endif
 
 static struct st_mysql_auth native_password_handler=
@@ -12819,16 +12825,6 @@ static struct st_mysql_auth old_password_handler=
   old_password_plugin_name.str,
   old_password_authenticate
 };
-
-#ifdef HAVE_GSSAPI
-static struct st_mysql_auth kerberos_handler=
-{
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
-  kerberos_plugin_name.str,
-  kerberos_authenticate
-};
-
-#endif
 
 maria_declare_plugin(mysql_password)
 {
