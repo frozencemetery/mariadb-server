@@ -59,7 +59,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     DBUG_ASSERT(len <= missing);
     if (len < 0)
     {
-      printf("TODO(rharwood) pick up the pieces and try not to cry\n");
+      DBUG_PRINT("cleanup", ("TODO(rharwood) pick up the pieces and try not to cry\n"));
     }
     me->read_end += len;
     missing = me->read_pos + 4 - me->read_end;
@@ -72,7 +72,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   packet_size = ntohl(packet_size);
   if (packet_size > VIO_READ_BUFFER_SIZE - 4)
   {
-    printf("TODO(rharwood) why you gots to be malicious :(\n");
+    DBUG_PRINT("cleanup", ("TODO(rharwood) why you gots to be malicious :(\n"));
   }
 
   missing = me->read_pos + packet_size + 4 - me->read_end;
@@ -83,7 +83,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     DBUG_ASSERT(len <= missing);
     if (len < 0)
     {
-      printf("TODO(rharwood) actually cry this time\n");
+      DBUG_PRINT("malicious", ("TODO(rharwood) actually cry this time\n"));
     }
     me->read_end += len;
     missing = me->read_pos + packet_size + 4 - me->read_end;
@@ -97,11 +97,11 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   major = gss_unwrap(&minor, me->gss_ctxt, &input, &output, &conf, NULL);
   if (GSS_ERROR(major))
   {
-    printf("TODO(rharwood) crypto is hard\n");
+    DBUG_PRINT("gssapi", ("TODO(rharwood) crypto is hard\n"));
   }
   else if (conf == 0)
   {
-    printf("TODO(rharwood) like, *really* hard\n");
+    DBUG_PRINT("gssapi", ("TODO(rharwood) like, *really* hard\n"));
   }
 
   DBUG_ASSERT(output.length <= packet_size + 4);
@@ -137,11 +137,11 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
 		   &conf, &output);
   if (GSS_ERROR(major))
   {
-    printf("TODO(rharwood) handle\n");
+    DBUG_PRINT("gssapi", ("TODO(rharwood) handle\n"));
   }
   else if (!conf)
   {
-    printf("TODO(rharwood) bail?\n");
+    DBUG_PRINT("gssapi", ("TODO(rharwood) bail?\n"));
   }
 
   /*
@@ -158,7 +158,7 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
   send_buf = malloc(output.length + 4);
   if (!send_buf)
   {
-    printf("TODO(rharwood) derp derp derp\n");
+    DBUG_PRINT("malloc", ("TODO(rharwood) derp derp derp\n"));
   }
   packetlen = htonl(output.length);
   memcpy(send_buf, &packetlen, 4);

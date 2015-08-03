@@ -12800,7 +12800,7 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
                                  MYSQL_SERVER_AUTH_INFO *info)
 {
-  printf("TODO(rharwood): actually authenticate users :|\n");
+  sql_print_information("TODO(rharwood): actually authenticate users :|\n");
   return CR_AUTH_HANDSHAKE;
 }
 

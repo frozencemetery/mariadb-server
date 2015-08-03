@@ -170,7 +170,7 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
       vio->read_buffer =my_malloc(VIO_READ_BUFFER_SIZE, MYF(MY_WME));
       if (!vio->read_buffer)
       {
-        printf("TODO(rharwood) fail REALLY hard\n");
+        DBUG_PRINT("malloc", ("TODO(rharwood) fail REALLY hard\n"));
       }
       flags |= VIO_BUFFERED_READ;
     }
