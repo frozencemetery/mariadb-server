@@ -3185,12 +3185,13 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   }
 
 #ifdef HAVE_GSSAPI
-  if (!strcmp(auth_plugin_name, kerberos_plugin_name))
+  if (!strcmp(auth_plugin->name, kerberos_plugin_name))
   {
-    printf("sdf\n");
+    vio_reset(mysql->net.vio, VIO_TYPE_GSSAPI,
+              mysql_socket_getfd(mysql->net.vio->mysql_socket), NULL, 0);
   }
 #endif
-  
+
   /*
     net->read_pos[0] should always be 0 here if the server implements
     the protocol correctly
@@ -5049,13 +5050,14 @@ static int gssapi_kerberos_auth_client(const char *spn,
     else
     {
       context_established = 1;
+      mysql->net.vio->gss_ctxt = ctxt;
     }
   }
 
 cleanup:
   if (have_name)
     gss_release_name(&minor, &service_name);
-  if (have_ctxt)
+  if (have_ctxt && !context_established)
     gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
   if (have_cred)
     gss_release_cred(&minor, &cred);
