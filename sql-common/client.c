@@ -3183,6 +3183,14 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       }
     }
   }
+
+#ifdef HAVE_GSSAPI
+  if (!strcmp(auth_plugin_name, kerberos_plugin_name.str))
+  {
+    printf("sdf\n");
+  }
+#endif
+  
   /*
     net->read_pos[0] should always be 0 here if the server implements
     the protocol correctly
