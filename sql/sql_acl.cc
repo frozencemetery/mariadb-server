@@ -12799,17 +12799,37 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 #ifdef HAVE_GSSAPI
 static char *error_msg(OM_uint32 major, OM_uint32 minor)
 {
-  return NULL;
-}
+  sql_print_information("TODO(rharwood) better error reporting\n");
 
-static void my_error(void *first, void *second, void *third)
-{
-  sql_print_information("TODO(rharwood): error not otherwise specified\n");
+  gss_buffer_desc input;
+  OM_uint32 resmajor = major, resminor = minor;
+  OM_uint32 cont = 0;
+
+  do {
+    input.length = 0;
+    input.value = NULL;
+    major = gss_display_status(&minor, resmajor, GSS_C_GSS_CODE,
+                               GSS_C_NO_OID, &cont, &input);
+    sql_print_information("UH-OH: %s", input.value);
+    major = gss_release_buffer(&minor, &input);
+  } while (cont != 0);
+  cont = 0;
+  do {
+    input.length = 0;
+    input.value = NULL;
+    major = gss_display_status(&minor, resminor, GSS_C_MECH_CODE,
+                               GSS_C_NO_OID, &cont, &input);
+    sql_print_information("uh-oh: %s", input.value);
+    major = gss_release_buffer(&minor, &input);
+  } while (cont != 0);
+
+  return NULL;
 }
 
 static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
                                 MYSQL_SERVER_AUTH_INFO *info)
 {
+  DBUG_ENTER("gssapi_kerberos_auth");
   int r_len = 0; /* packet read length */
   int rc = CR_OK; /* return code */
   int have_cred = FALSE;
@@ -12967,13 +12987,13 @@ cleanup:
   if (have_cred)
     gss_release_cred(&minor, &cred);
 
-  return rc;
+  DBUG_RETURN(rc);
 }
 
 static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
                                  MYSQL_SERVER_AUTH_INFO *info)
 {
-  sql_print_information("TODO(rharwood): actually authenticate users :|\n");
+  DBUG_ENTER("kerberos_authenticate");
 
   size_t p_len = 0; /* length of principal name */
   int rc = CR_OK; /* return code */
@@ -12985,7 +13005,7 @@ static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
   {
     my_error(1, MYF(0),
              "Kerberos: no principal name specified.");
-    return CR_ERROR;
+    DBUG_RETURN(CR_ERROR);
   }
 
   if (vio->write_packet(vio, (unsigned char *) kerberos_principal_name_ptr,
@@ -12993,14 +13013,14 @@ static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
   {
     my_error(1, MYF(0),
              "Kerberos: fail to send service principal name.");
-    return CR_ERROR;
+    DBUG_RETURN(CR_ERROR);
   }
 
   rc = gssapi_kerberos_auth(vio, info);
 
   free(principal_name);
 
-  return rc;
+  DBUG_RETURN(rc);
 }
 
 static struct st_mysql_auth kerberos_handler=
