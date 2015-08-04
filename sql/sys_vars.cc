@@ -5309,8 +5309,8 @@ static Sys_var_charptr Sys_kerberos_principal_name(
 static Sys_var_charptr Sys_kerberos_keytab_path(
        "kerberos_keytab_path",
        "path to Kerberos keytab used with GSSAPI "
-       "(default to /etc/my.cnf.d/mariadb.keytab)",
+       "(default to reading $KRB5_KTNAME)",
        READ_ONLY GLOBAL_VAR(kerberos_keytab_path_ptr),
        CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET,
-       DEFAULT("/etc/my.cnf.d/mariadb.keytab"));
+       DEFAULT(""));
 #endif
