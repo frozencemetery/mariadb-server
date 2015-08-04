@@ -161,7 +161,6 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
   }
 #endif /* HAVE_OPENSSL */
 #ifdef HAVE_GSSAPI
-  vio->gss_ctxt = GSS_C_NO_CONTEXT;
   if (type == VIO_TYPE_GSSAPI)
   {
     if (!vio->read_buffer)
@@ -195,6 +194,14 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     vio->shutdown       =vio_socket_shutdown;
     vio->timeout        =vio_socket_timeout;
     DBUG_VOID_RETURN;
+  }
+  else
+  {
+    /*
+      It is invalid to _start_ with a GSSAPI vio; one must start with a socket
+      and then upgrade.
+    */
+    vio->gss_ctxt = GSS_C_NO_CONTEXT;
   }
 #endif /* HAVE_GSSAPI */
   /* type == VIO_TYPE_TCPIP */
