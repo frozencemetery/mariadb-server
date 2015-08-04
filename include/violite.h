@@ -127,6 +127,7 @@ int vio_getnameinfo(const struct sockaddr *sa,
 #ifdef HAVE_GSSAPI
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_generic.h>
+#include <gssapi/gssapi_ext.h>
 #endif /* HAVE_GSSAPI */
 
 #ifdef HAVE_OPENSSL

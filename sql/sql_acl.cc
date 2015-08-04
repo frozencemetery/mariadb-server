@@ -12797,11 +12797,210 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 }
 
 #ifdef HAVE_GSSAPI
+static char *error_msg(OM_uint32 major, OM_uint32 minor)
+{
+  return NULL;
+}
+
+static void my_error(void *first, void *second, void *third)
+{
+  sql_print_information("TODO(rharwood): error not otherwise specified\n");
+}
+
+static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
+                                MYSQL_SERVER_AUTH_INFO *info)
+{
+  int r_len = 0; /* packet read length */
+  int rc = CR_OK; /* return code */
+  int have_cred = FALSE;
+  int have_ctxt = FALSE;
+  const char *err_msg = NULL; /* error message text */
+  /* GSSAPI related fields */
+  OM_uint32 major = 0, minor = 0, flags = 0;
+  gss_cred_id_t cred; /* credential identifier */
+  gss_ctx_id_t ctxt; /* context identifier */
+  gss_name_t client_name, service_name;
+  gss_buffer_desc principal_name_buf, client_name_buf, input, output;
+
+  /* import service principal from plain text */
+  /* initialize principal name */
+  principal_name_buf.length = strlen(kerberos_principal_name_ptr);
+  principal_name_buf.value = kerberos_principal_name_ptr;
+  major = gss_import_name(&minor, &principal_name_buf,
+                          (gss_OID) gss_nt_user_name, &service_name);
+  /* gss_import_name error checking */
+  if (GSS_ERROR(major))
+  {
+    err_msg = error_msg(major, minor);
+    rc = CR_ERROR;
+    my_error(1, MYF(0), err_msg);
+    goto cleanup;
+  }
+
+  /* server acquires credential */
+  if (kerberos_keytab_path_ptr[0] != '\0')
+  {
+    /* it's been set */
+    gss_key_value_element_desc element =
+      { "keytab", kerberos_keytab_path_ptr, };
+    gss_key_value_set_desc cred_store = { 1, &element, };
+    major = gss_acquire_cred_from(&minor, service_name, GSS_C_INDEFINITE,
+                                 GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred_store,
+                                 &cred, NULL, NULL);
+  }
+  else
+  {
+    /* if there's no keytab set, try to use the env var */
+    major = gss_acquire_cred(&minor, service_name, GSS_C_INDEFINITE,
+                             GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred, NULL,
+                             NULL);    
+  }
+
+  /* gss_acquire_cred error checking */
+  if (GSS_ERROR(major))
+  {
+    err_msg = error_msg(major, minor);
+    rc = CR_ERROR;
+    my_error(1, MYF(0), err_msg);
+    goto cleanup;
+  }
+  else
+  {
+    have_cred = TRUE;
+  }
+
+  major = gss_release_name(&minor, &service_name);
+  if (major == GSS_S_BAD_NAME)
+  {
+    rc = CR_ERROR;
+    my_error(1, MYF(0), "Kerbeos: fail when invoke "
+                                              "gss_release_name, no valid "
+                                              "name found.");
+    goto cleanup;
+  }
+
+  /* accept security context */
+  ctxt = GSS_C_NO_CONTEXT;
+  /* first trial */
+  input.length = 0;
+  input.value = NULL;
+  do
+  {
+    /* receive token from peer first */
+    r_len = vio->read_packet(vio, (unsigned char **) &input.value);
+    if (r_len < 0)
+    {
+      rc = CR_ERROR;
+      my_error(1, MYF(0),
+               "Kerberos: fail to read token from client.");
+      goto cleanup;
+    }
+    else
+    {
+      /* make length consistent with value */
+      input.length = r_len;
+    }
+
+    major = gss_accept_sec_context(&minor, &ctxt, /* ctxt handle */
+                                   cred, &input, /* input buffer */
+                                   GSS_C_NO_CHANNEL_BINDINGS,
+                                   &client_name, /* source name */
+                                   NULL, /* mech type */
+                                   &output, /* output buffer */
+                                   &flags, /* return flag */
+                                   NULL, /* time rec */
+                                   NULL);
+    if (GSS_ERROR(major))
+    {
+      if (ctxt != GSS_C_NO_CONTEXT)
+      {
+        gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
+      }
+      err_msg = error_msg(major, minor);
+      rc = CR_ERROR;
+      my_error(1, MYF(0), err_msg);
+      goto cleanup;
+    }
+    /* security context established (partially) */
+    have_ctxt = TRUE;
+
+    /* send token to peer */
+    if (output.length)
+    {
+      if (vio->write_packet(vio, (const uchar *) output.value, output.length))
+      {
+        gss_release_buffer(&minor, &output);
+        rc = CR_ERROR;
+        my_error(1, MYF(0),
+                 "Kerberos: fail to send authentication token.");
+        goto cleanup;
+      }
+      gss_release_buffer(&minor, &output);
+    }
+  } while (major & GSS_S_CONTINUE_NEEDED);
+
+  /* extrac plain text client name */
+  major = gss_display_name(&minor, client_name, &client_name_buf, NULL);
+  if (major == GSS_S_BAD_NAME)
+  {
+    rc = CR_ERROR;
+    my_error(1, MYF(0),
+             "Kerberos: fail to display an ill-formed principal name.");
+    goto cleanup;
+  }
+
+  /* expected user? */
+  if (strncmp((const char *) client_name_buf.value, info->auth_string,
+              client_name_buf.length))
+  {
+    gss_release_buffer(&minor, &client_name_buf);
+    rc = CR_ERROR;
+    my_error(1, MYF(0),
+             "Kerberos: fail authentication user.");
+    goto cleanup;
+  }
+  gss_release_buffer(&minor, &client_name_buf);
+
+cleanup:
+  if (have_ctxt)
+    gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
+  if (have_cred)
+    gss_release_cred(&minor, &cred);
+
+  return rc;
+}
+
 static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
                                  MYSQL_SERVER_AUTH_INFO *info)
 {
   sql_print_information("TODO(rharwood): actually authenticate users :|\n");
-  return CR_AUTH_HANDSHAKE;
+
+  size_t p_len = 0; /* length of principal name */
+  int rc = CR_OK; /* return code */
+  char *principal_name = NULL;
+
+  /* server sends service principal name first. */
+  p_len = strlen(kerberos_principal_name_ptr);
+  if (!p_len)
+  {
+    my_error(1, MYF(0),
+             "Kerberos: no principal name specified.");
+    return CR_ERROR;
+  }
+
+  if (vio->write_packet(vio, (unsigned char *) kerberos_principal_name_ptr,
+                        (int) p_len) < 0)
+  {
+    my_error(1, MYF(0),
+             "Kerberos: fail to send service principal name.");
+    return CR_ERROR;
+  }
+
+  rc = gssapi_kerberos_auth(vio, info);
+
+  free(principal_name);
+
+  return rc;
 }
 
 static struct st_mysql_auth kerberos_handler=
