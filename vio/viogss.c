@@ -23,6 +23,35 @@
 
 #ifdef HAVE_GSSAPI
 
+static char *error_msg(OM_uint32 major, OM_uint32 minor)
+{
+  DBUG_PRINT("error", ("TODO(rharwood) better error reporting\n"));
+
+  gss_buffer_desc input;
+  OM_uint32 resmajor = major, resminor = minor;
+  OM_uint32 cont = 0;
+
+  do {
+    input.length = 0;
+    input.value = NULL;
+    major = gss_display_status(&minor, resmajor, GSS_C_GSS_CODE,
+                               GSS_C_NO_OID, &cont, &input);
+    DBUG_PRINT("error", ("UH-OH: %s", input.value));
+    major = gss_release_buffer(&minor, &input);
+  } while (cont != 0);
+  cont = 0;
+  do {
+    input.length = 0;
+    input.value = NULL;
+    major = gss_display_status(&minor, resminor, GSS_C_MECH_CODE,
+                               GSS_C_NO_OID, &cont, &input);
+    DBUG_PRINT("error", ("uh-oh: %s", input.value));
+    major = gss_release_buffer(&minor, &input);
+  } while (cont != 0);
+
+  return NULL;
+}
+
 /* Always buffered */
 size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
 {
@@ -97,10 +126,12 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   major = gss_unwrap(&minor, me->gss_ctxt, &input, &output, &conf, NULL);
   if (GSS_ERROR(major))
   {
+    error_msg(major, minor);
     DBUG_PRINT("gssapi", ("TODO(rharwood) crypto is hard\n"));
   }
   else if (conf == 0)
   {
+    error_msg(major, minor);
     DBUG_PRINT("gssapi", ("TODO(rharwood) like, *really* hard\n"));
   }
 
@@ -137,10 +168,12 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
 		   &conf, &output);
   if (GSS_ERROR(major))
   {
+    error_msg(major, minor);
     DBUG_PRINT("gssapi", ("TODO(rharwood) handle\n"));
   }
   else if (!conf)
   {
+    error_msg(major, minor);
     DBUG_PRINT("gssapi", ("TODO(rharwood) bail?\n"));
   }
 
