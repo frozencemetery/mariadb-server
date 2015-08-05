@@ -600,7 +600,9 @@ int vio_close(Vio *vio)
   {
     DBUG_ASSERT(vio->type ==  VIO_TYPE_TCPIP ||
       vio->type == VIO_TYPE_SOCKET ||
-      vio->type == VIO_TYPE_SSL);
+      vio->type == VIO_TYPE_SSL ||
+      vio->type == VIO_TYPE_GSSAPI
+      );
 
     DBUG_ASSERT(mysql_socket_getfd(vio->mysql_socket) >= 0);
     if (mysql_socket_shutdown(vio->mysql_socket, SHUT_RDWR))

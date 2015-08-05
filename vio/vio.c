@@ -78,13 +78,23 @@ int vio_pipe_shutdown(Vio *vio, int how)
 static void vio_init(Vio *vio, enum enum_vio_type type,
                      my_socket sd, uint flags)
 {
+#ifdef HAVE_GSSAPI
+  /* Need to preserve GSSAPI context, if available */
+  gss_ctx_id_t ctxt = vio->gss_ctxt;
+#endif
+
   DBUG_ENTER("vio_init");
   DBUG_PRINT("enter", ("type: %d  sd: %d  flags: %d", type, sd, flags));
 
 #ifndef HAVE_VIO_READ_BUFF
   flags&= ~VIO_BUFFERED_READ;
 #endif
+
   memset(vio, 0, sizeof(*vio));
+#ifdef HAVE_GSSAPI
+  vio->gss_ctxt = ctxt;
+#endif
+
   vio->type= type;
   vio->mysql_socket= MYSQL_INVALID_SOCKET;
   mysql_socket_setfd(&vio->mysql_socket, sd);
@@ -194,14 +204,6 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     vio->shutdown       =vio_socket_shutdown;
     vio->timeout        =vio_socket_timeout;
     DBUG_VOID_RETURN;
-  }
-  else
-  {
-    /*
-      It is invalid to _start_ with a GSSAPI vio; one must start with a socket
-      and then upgrade.
-    */
-    vio->gss_ctxt = GSS_C_NO_CONTEXT;
   }
 #endif /* HAVE_GSSAPI */
   /* type == VIO_TYPE_TCPIP */
