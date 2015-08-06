@@ -52,7 +52,7 @@ static char *error_msg(OM_uint32 major, OM_uint32 minor)
   return NULL;
 }
 
-static inline size_t vio_gss_dump_plaintext(Vio *me, uchar *buf, size_t n)
+static size_t vio_gss_dump_plaintext(Vio *me, uchar *buf, size_t n)
 {
   /* a packet is decrypted and ready to go */
   size_t get = MY_MIN(n, (size_t) (me->read_pos - me->read_buffer));
@@ -77,18 +77,19 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   OM_uint32 major, minor;
   gss_buffer_desc input, output;
   int conf;
-
-  DBUG_ENTER("vio_gss_read");
   
   if (vio_gss_has_data(me))
-    DBUG_RETURN(vio_gss_dump_plaintext(me, buf, n));
+  {
+    len = vio_gss_dump_plaintext(me, buf, n);
+    return len;
+  }
 
   missing = me->read_pos + 4 - me->read_end;
   if (missing > 0)
   {
     /* we need to get the length */
     len = vio_read(me, (uchar *) me->read_end, missing);
-    DBUG_ASSERT(len <= missing);
+    /* DBUG_ASSERT(len <= missing); */
     if (len < 0)
     {
       DBUG_PRINT("cleanup", ("TODO(rharwood) pick up the pieces and try not to cry\n"));
@@ -96,7 +97,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     me->read_end += len;
     missing = me->read_pos + 4 - me->read_end;
     if (missing > 0)
-      DBUG_RETURN(0); 
+      return 0;
   }
 
   /* we now have the length */
@@ -112,7 +113,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   {
     /* try to get the rest of the packet */
     len = vio_read(me, (uchar *) me->read_end, missing);
-    DBUG_ASSERT(len <= missing);
+    /* DBUG_ASSERT(len <= missing); */
     if (len < 0)
     {
       DBUG_PRINT("malicious", ("TODO(rharwood) actually cry this time\n"));
@@ -120,7 +121,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     me->read_end += len;
     missing = me->read_pos + packet_size + 4 - me->read_end;
     if (missing > 0)
-      DBUG_RETURN(0);
+      return 0;
   }
 
   /* we now have a full packet ready to decrypt */
@@ -138,12 +139,13 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     DBUG_PRINT("gssapi", ("TODO(rharwood) like, *really* hard\n"));
   }
 
-  DBUG_ASSERT(output.length <= packet_size + 4);
+  /* DBUG_ASSERT(output.length <= packet_size + 4); */
   memcpy(me->read_buffer, output.value, output.length);
   me->read_pos = me->read_end = me->read_buffer + output.length;
   gss_release_buffer(&minor, &output);
 
-  DBUG_RETURN(vio_gss_dump_plaintext(me, buf, n));
+  len = vio_gss_dump_plaintext(me, buf, n);
+  return len;
 }
 
 size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
@@ -153,6 +155,7 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
   int conf;
   uchar *send_buf;
   uint32 packetlen;
+  size_t ret;
 
   DBUG_ENTER("vio_gss_write");
   
@@ -199,9 +202,19 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
   memcpy(send_buf, &packetlen, 4);
   memcpy(send_buf + 4, output.value, output.length);
 
-  DBUG_RETURN(vio_write(me, send_buf, output.length + 4));
+  ret = vio_write(me, send_buf, output.length + 4);
 
   major = gss_release_buffer(&minor, &output);
+
+  if (htonl(ret - 4) == packetlen)
+    DBUG_RETURN(len);
+  else if (ret < 0)
+    DBUG_RETURN(ret);
+  else
+  {
+    DBUG_PRINT("idiocy", ("TODO(rharwood) loop\n"));
+    DBUG_RETURN(-1);
+  }
 }
 
 int vio_gss_close(Vio *me)
