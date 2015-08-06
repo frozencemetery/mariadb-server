@@ -60,7 +60,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     vio->read_pos: start of encrypted data
     vio->read_end: current insertion point
    */
-  ssize_t len, missing;
+  ssize_t len, missing, ret;
   size_t packet_size;
   OM_uint32 major, minor;
   gss_buffer_desc input, output;
@@ -140,8 +140,12 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   me->read_pos = me->read_end = me->read_buffer + output.length;
   gss_release_buffer(&minor, &output);
 
-  /* recur at most once; "free" since it's a tail call */
-  DBUG_RETURN(vio_gss_read(me, buf, n));
+  /*
+    Recur at most once; "free" since it's a tail call.
+    Be careful - recursion inside DBUG_RETURN seems to cause explosion.
+  */
+  ret = vio_gss_read(me, buf, n);
+  DBUG_RETURN(ret);
 }
 
 size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
