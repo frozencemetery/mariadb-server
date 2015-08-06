@@ -197,9 +197,9 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
   memcpy(send_buf, &packetlen, 4);
   memcpy(send_buf + 4, output.value, output.length);
 
-  major = gss_release_buffer(&minor, &output);
-
   DBUG_RETURN(vio_write(me, send_buf, output.length + 4));
+
+  major = gss_release_buffer(&minor, &output);
 }
 
 int vio_gss_close(Vio *me)
