@@ -12980,6 +12980,13 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
     goto cleanup;
   }
   gss_release_buffer(&minor, &client_name_buf);
+  have_ctxt = FALSE; /* don't clear this */
+  ((MPVIO_EXT *)vio)->thd->net.vio->gss_ctxt = ctxt;
+  /*
+    vio will be reset later in login_connection() after completion of sending
+    the end statement.  End statement must be sent in the clear, since
+    otherwise our client would not know when to start encrypting.
+  */
 
 cleanup:
   if (have_ctxt)
