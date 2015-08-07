@@ -92,7 +92,12 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
 
   memset(vio, 0, sizeof(*vio));
 #ifdef HAVE_GSSAPI
-  vio->gss_ctxt = ctxt;
+  /*
+    Only preserve GSSAPI contexts when they're properly initialized -
+    which will only occur when we're switching to GSSAPI.
+   */
+  if (type == VIO_TYPE_GSSAPI)
+    vio->gss_ctxt = ctxt;
 #endif
 
   vio->type= type;
