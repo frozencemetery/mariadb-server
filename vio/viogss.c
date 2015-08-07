@@ -236,7 +236,7 @@ my_bool vio_gss_has_data(Vio *me)
 {
   DBUG_ENTER("vio_gss_has_data");
 
-  return me->read_buffer != me->read_pos;
+  DBUG_RETURN(me->read_buffer != me->read_pos);
 }
 
 #endif /* HAVE_GSSAPI */
