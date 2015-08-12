@@ -89,10 +89,10 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   {
     /* we need to get the length */
     len = vio_read(me, (uchar *) me->read_end, missing);
-    /* DBUG_ASSERT(len <= missing); */
     if (len < 0)
     {
-      DBUG_PRINT("cleanup", ("TODO(rharwood) pick up the pieces and try not to cry\n"));
+      /* error already logged from vio_read */
+      return len;
     }
     me->read_end += len;
     missing = me->read_pos + 4 - me->read_end;
@@ -113,10 +113,10 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   {
     /* try to get the rest of the packet */
     len = vio_read(me, (uchar *) me->read_end, missing);
-    /* DBUG_ASSERT(len <= missing); */
     if (len < 0)
     {
-      DBUG_PRINT("malicious", ("TODO(rharwood) actually cry this time\n"));
+      /* error already logged from vio_read */
+      return len;
     }
     me->read_end += len;
     missing = me->read_pos + packet_size + 4 - me->read_end;
@@ -196,7 +196,8 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
   send_buf = malloc(output.length + 4);
   if (!send_buf)
   {
-    DBUG_PRINT("malloc", ("TODO(rharwood) derp derp derp\n"));
+    DBUG_PRINT("vio_error", ("Failed to malloc!"));
+    DBUG_RETURN(errno);
   }
   packetlen = htonl(output.length);
   memcpy(send_buf, &packetlen, 4);
@@ -212,7 +213,7 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
     DBUG_RETURN(ret);
   else
   {
-    DBUG_PRINT("idiocy", ("TODO(rharwood) loop\n"));
+    DBUG_PRINT("idiocy", ("TODO(rharwood) call mysql_socket_send here\n"));
     DBUG_RETURN(-1);
   }
 }
