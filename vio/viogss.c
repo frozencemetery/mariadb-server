@@ -23,13 +23,15 @@
 
 #ifdef HAVE_GSSAPI
 
-static char *error_msg(OM_uint32 major, OM_uint32 minor)
+static void error_msg(OM_uint32 major, OM_uint32 minor)
 {
-  DBUG_PRINT("error", ("TODO(rharwood) better error reporting\n"));
-
   gss_buffer_desc input;
   OM_uint32 resmajor = major, resminor = minor;
   OM_uint32 cont = 0;
+
+  DBUG_ENTER("error_msg");
+
+  DBUG_PRINT("error", ("TODO(rharwood) better error reporting\n"));
 
   do {
     input.length = 0;
@@ -49,11 +51,13 @@ static char *error_msg(OM_uint32 major, OM_uint32 minor)
     major = gss_release_buffer(&minor, &input);
   } while (cont != 0);
 
-  return NULL;
+  DBUG_VOID_RETURN;
 }
 
 static size_t vio_gss_dump_plaintext(Vio *me, uchar *buf, size_t n)
 {
+  DBUG_ENTER("vio_gss_dump_plaintext");
+
   /* a packet is decrypted and ready to go */
   size_t get = MY_MIN(n, (size_t) (me->read_pos - me->read_buffer));
   memcpy(buf, me->read_buffer, get);
@@ -61,7 +65,7 @@ static size_t vio_gss_dump_plaintext(Vio *me, uchar *buf, size_t n)
           me->read_end - me->read_buffer - get);
   me->read_pos -= get;
   me->read_end -= get;
-  return get;
+  DBUG_RETURN(get);
 }
 
 /* Always buffered */
@@ -77,11 +81,13 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   OM_uint32 major, minor;
   gss_buffer_desc input, output;
   int conf;
+
+  DBUG_ENTER("vio_gss_read");
   
   if (vio_gss_has_data(me))
   {
     len = vio_gss_dump_plaintext(me, buf, n);
-    return len;
+    DBUG_RETURN(len);
   }
 
   missing = me->read_pos + 4 - me->read_end;
@@ -92,12 +98,12 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     if (len < 0)
     {
       /* error already logged from vio_read */
-      return len;
+      DBUG_RETURN(len);
     }
     me->read_end += len;
     missing = me->read_pos + 4 - me->read_end;
     if (missing > 0)
-      return 0;
+      DBUG_RETURN(0);
   }
 
   /* we now have the length */
@@ -116,12 +122,12 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
     if (len < 0)
     {
       /* error already logged from vio_read */
-      return len;
+      DBUG_RETURN(len);
     }
     me->read_end += len;
     missing = me->read_pos + packet_size + 4 - me->read_end;
     if (missing > 0)
-      return 0;
+      DBUG_RETURN(0);
   }
 
   /* we now have a full packet ready to decrypt */
@@ -145,7 +151,7 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   gss_release_buffer(&minor, &output);
 
   len = vio_gss_dump_plaintext(me, buf, n);
-  return len;
+  DBUG_RETURN(len);
 }
 
 size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
