@@ -235,6 +235,9 @@ enum SSL_type
   SSL_TYPE_SPECIFIED
 };
 
+#ifdef HAVE_GSSAPI
+void gss_dbug_error(OM_uint32 major, OM_uint32 minor);
+#endif
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */

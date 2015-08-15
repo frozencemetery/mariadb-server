@@ -23,13 +23,13 @@
 
 #ifdef HAVE_GSSAPI
 
-static void vio_gss_log_error(OM_uint32 major, OM_uint32 minor)
+void gss_dbug_error(OM_uint32 major, OM_uint32 minor)
 {
   gss_buffer_desc input;
   OM_uint32 resmajor = major, resminor = minor;
   OM_uint32 cont = 0;
 
-  DBUG_ENTER("vio_gss_log_error");
+  DBUG_ENTER("gss_dbug_error");
 
   do {
     input.length = 0;
@@ -135,12 +135,12 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   major = gss_unwrap(&minor, me->gss_ctxt, &input, &output, &conf, NULL);
   if (GSS_ERROR(major))
   {
-    vio_gss_log_error(major, minor);
+    gss_dbug_error(major, minor);
     DBUG_RETURN(-1);
   }
   else if (conf == 0)
   {
-    vio_gss_log_error(major, minor);
+    gss_dbug_error(major, minor);
     DBUG_RETURN(-1);
   }
 
@@ -178,12 +178,12 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
 		   &conf, &output);
   if (GSS_ERROR(major))
   {
-    vio_gss_log_error(major, minor);
+    gss_dbug_error(major, minor);
     DBUG_RETURN(-1);
   }
   else if (!conf)
   {
-    vio_gss_log_error(major, minor);
+    gss_dbug_error(major, minor);
     DBUG_RETURN(-1);
   }
 

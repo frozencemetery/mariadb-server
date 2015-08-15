@@ -12797,35 +12797,6 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 }
 
 #ifdef HAVE_GSSAPI
-static char *error_msg(OM_uint32 major, OM_uint32 minor)
-{
-  sql_print_information("TODO(rharwood) better error reporting\n");
-
-  gss_buffer_desc input;
-  OM_uint32 resmajor = major, resminor = minor;
-  OM_uint32 cont = 0;
-
-  do {
-    input.length = 0;
-    input.value = NULL;
-    major = gss_display_status(&minor, resmajor, GSS_C_GSS_CODE,
-                               GSS_C_NO_OID, &cont, &input);
-    sql_print_information("UH-OH: %s", input.value);
-    major = gss_release_buffer(&minor, &input);
-  } while (cont != 0);
-  cont = 0;
-  do {
-    input.length = 0;
-    input.value = NULL;
-    major = gss_display_status(&minor, resminor, GSS_C_MECH_CODE,
-                               GSS_C_NO_OID, &cont, &input);
-    sql_print_information("uh-oh: %s", input.value);
-    major = gss_release_buffer(&minor, &input);
-  } while (cont != 0);
-
-  return NULL;
-}
-
 static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
                                 MYSQL_SERVER_AUTH_INFO *info)
 {
@@ -12851,9 +12822,8 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   /* gss_import_name error checking */
   if (GSS_ERROR(major))
   {
-    err_msg = error_msg(major, minor);
+    gss_dbug_error(major, minor);
     rc = CR_ERROR;
-    my_error(1, MYF(0), err_msg);
     goto cleanup;
   }
 
@@ -12876,26 +12846,20 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
                              NULL);    
   }
 
-  /* gss_acquire_cred error checking */
   if (GSS_ERROR(major))
   {
-    err_msg = error_msg(major, minor);
+    gss_dbug_error(major, minor);
     rc = CR_ERROR;
-    my_error(1, MYF(0), err_msg);
     goto cleanup;
   }
   else
-  {
     have_cred = TRUE;
-  }
 
   major = gss_release_name(&minor, &service_name);
   if (major == GSS_S_BAD_NAME)
   {
     rc = CR_ERROR;
-    my_error(1, MYF(0), "Kerbeos: fail when invoke "
-                                              "gss_release_name, no valid "
-                                              "name found.");
+    gss_dbug_error(major, minor);
     goto cleanup;
   }
 
@@ -12936,9 +12900,8 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
       {
         gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
       }
-      err_msg = error_msg(major, minor);
+      gss_dbug_error(major, minor);
       rc = CR_ERROR;
-      my_error(1, MYF(0), err_msg);
       goto cleanup;
     }
     /* security context established (partially) */
@@ -12959,13 +12922,12 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
     }
   } while (major & GSS_S_CONTINUE_NEEDED);
 
-  /* extrac plain text client name */
+  /* extract plain text client name */
   major = gss_display_name(&minor, client_name, &client_name_buf, NULL);
   if (major == GSS_S_BAD_NAME)
   {
     rc = CR_ERROR;
-    my_error(1, MYF(0),
-             "Kerberos: fail to display an ill-formed principal name.");
+    gss_dbug_error(major, minor);
     goto cleanup;
   }
 
@@ -12975,8 +12937,7 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   {
     gss_release_buffer(&minor, &client_name_buf);
     rc = CR_ERROR;
-    my_error(1, MYF(0),
-             "Kerberos: fail authentication user.");
+    gss_dbug_error(major, minor);
     goto cleanup;
   }
   gss_release_buffer(&minor, &client_name_buf);
