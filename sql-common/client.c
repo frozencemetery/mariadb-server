@@ -4975,12 +4975,10 @@ static int gssapi_kerberos_auth_client(const char *spn,
                           &service_name);
   /* gss_import_name error checking */
   if (GSS_ERROR(major))
+
   {
-    /* err_msg = kerberos_error_msg(major, minor); */
-    DBUG_PRINT("error", ("TODO(rharwood) error handling \n"));
+    gss_dbug_error(major, minor);
     rc = CR_ERROR;
-    /* set_krb_client_auth_error(mysql, ER_UNKNOWN_ERROR, KERBEROS_UNKNOWN_ERROR, */
-    /*                           err_msg); */
     goto cleanup;
   }
   have_name = TRUE;
@@ -5008,12 +5006,8 @@ static int gssapi_kerberos_auth_client(const char *spn,
       /* send credential */
       if (vio->write_packet(vio, output.value, output.length))
       {
-        gss_release_buffer(&minor, &output);
+        gss_dbug_error(major, minor);
         rc = CR_ERROR;
-        DBUG_PRINT("error", ("TODO(rharwood): moar error handling\n"));
-        /* set_krb_client_auth_error( */
-        /*     mysql, ER_NET_ERROR_ON_WRITE, KERBEROS_NET_ERROR_ON_WRITE, */
-        /*     "Kerberos: fail to send credential to server."); */
         goto cleanup;
       }
       gss_release_buffer(&minor, &output);
@@ -5026,11 +5020,8 @@ static int gssapi_kerberos_auth_client(const char *spn,
       {
         gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
       }
-      /* err_msg = error_msg(major, minor); */
+      gss_dbug_error(major, minor);
       rc = CR_ERROR;
-      DBUG_PRINT("gssapi", ("TODO(rharwood): yup, I just love to handle errors\n"));
-      /* set_krb_client_auth_error(mysql, ER_UNKNOWN_ERROR, */
-      /*                           KERBEROS_UNKNOWN_ERROR, err_msg); */
       goto cleanup;
     }
 
@@ -5040,10 +5031,7 @@ static int gssapi_kerberos_auth_client(const char *spn,
       if (r_len < 0)
       {
         rc = CR_ERROR;
-        /* set_krb_client_auth_error( */
-        /*     mysql, ER_NET_READ_ERROR, KERBEROS_NET_READ_ERROR, */
-        /*     "Error read credential packet from server."); */
-        DBUG_PRINT("cleanup", ("TODO(rharwood): error make my world circle itself\n"));
+        gss_dbug_error(major, minor);
         goto cleanup;
       }
     }
@@ -5078,18 +5066,18 @@ static int kerberos_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
   
   spn = NULL; /* service principal name */
   spn_buff = (char *) malloc(PRINCIPAL_NAME_LEN);
-  DBUG_PRINT("malloc", ("TODO(rharwood): check this malloc\n"));
+  if (!spn_buff)
+  {
+    DBUG_PRINT("kerberos_auth_client", ("malloc failure!"));
+    DBUG_RETURN(-1);
+  }
 
   /* read from server for service principal name */
   r_len = vio->read_packet(vio, (unsigned char **) &spn);
   if (r_len < 0)
   {
-    /* set_krb_client_auth_error( */
-    /*     mysql, ER_NET_READ_ERROR, KERBEROS_NET_READ_ERROR, */
-    /*     "Kerberos: fail to read service principal name."); */
-    DBUG_PRINT("cleanup", ("TODO(rharwood): squishy error is squishy\n"));
-
-    return CR_ERROR;
+    gss_dbug_error(major, minor);
+    DBUG_RETURN(CR_ERROR);
   }
   strncpy(spn_buff, spn, PRINCIPAL_NAME_LEN);
 
