@@ -12822,7 +12822,7 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   /* gss_import_name error checking */
   if (GSS_ERROR(major))
   {
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     rc = CR_ERROR;
     goto cleanup;
   }
@@ -12848,7 +12848,7 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
 
   if (GSS_ERROR(major))
   {
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     rc = CR_ERROR;
     goto cleanup;
   }
@@ -12859,7 +12859,7 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   if (major == GSS_S_BAD_NAME)
   {
     rc = CR_ERROR;
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     goto cleanup;
   }
 
@@ -12900,7 +12900,7 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
       {
         gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
       }
-      gss_dbug_error(major, minor);
+      GSS_DBUG_ERROR(major, minor);
       rc = CR_ERROR;
       goto cleanup;
     }
@@ -12927,7 +12927,7 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   if (major == GSS_S_BAD_NAME)
   {
     rc = CR_ERROR;
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     goto cleanup;
   }
 
@@ -12937,7 +12937,7 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   {
     gss_release_buffer(&minor, &client_name_buf);
     rc = CR_ERROR;
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     goto cleanup;
   }
   gss_release_buffer(&minor, &client_name_buf);

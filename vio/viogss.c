@@ -23,35 +23,6 @@
 
 #ifdef HAVE_GSSAPI
 
-void gss_dbug_error(OM_uint32 major, OM_uint32 minor)
-{
-  gss_buffer_desc input;
-  OM_uint32 resmajor = major, resminor = minor;
-  OM_uint32 cont = 0;
-
-  DBUG_ENTER("gss_dbug_error");
-
-  do {
-    input.length = 0;
-    input.value = NULL;
-    major = gss_display_status(&minor, resmajor, GSS_C_GSS_CODE,
-                               GSS_C_NO_OID, &cont, &input);
-    DBUG_PRINT("gsserror", ((char *) input.value));
-    major = gss_release_buffer(&minor, &input);
-  } while (cont != 0);
-  cont = 0;
-  do {
-    input.length = 0;
-    input.value = NULL;
-    major = gss_display_status(&minor, resminor, GSS_C_MECH_CODE,
-                               GSS_C_NO_OID, &cont, &input);
-    DBUG_PRINT("gsserror", ((char *) input.value));
-    major = gss_release_buffer(&minor, &input);
-  } while (cont != 0);
-
-  DBUG_VOID_RETURN;
-}
-
 static size_t vio_gss_dump_plaintext(Vio *me, uchar *buf, size_t n)
 {
   DBUG_ENTER("vio_gss_dump_plaintext");
@@ -135,12 +106,12 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   major = gss_unwrap(&minor, me->gss_ctxt, &input, &output, &conf, NULL);
   if (GSS_ERROR(major))
   {
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     DBUG_RETURN(-1);
   }
   else if (conf == 0)
   {
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     DBUG_RETURN(-1);
   }
 
@@ -178,12 +149,12 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
 		   &conf, &output);
   if (GSS_ERROR(major))
   {
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     DBUG_RETURN(-1);
   }
   else if (!conf)
   {
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     DBUG_RETURN(-1);
   }
 

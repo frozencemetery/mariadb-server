@@ -4977,7 +4977,7 @@ static int gssapi_kerberos_auth_client(const char *spn,
   if (GSS_ERROR(major))
 
   {
-    gss_dbug_error(major, minor);
+    GSS_DBUG_ERROR(major, minor);
     rc = CR_ERROR;
     goto cleanup;
   }
@@ -5006,7 +5006,7 @@ static int gssapi_kerberos_auth_client(const char *spn,
       /* send credential */
       if (vio->write_packet(vio, output.value, output.length))
       {
-        gss_dbug_error(major, minor);
+        GSS_DBUG_ERROR(major, minor);
         rc = CR_ERROR;
         goto cleanup;
       }
@@ -5020,7 +5020,7 @@ static int gssapi_kerberos_auth_client(const char *spn,
       {
         gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
       }
-      gss_dbug_error(major, minor);
+      GSS_DBUG_ERROR(major, minor);
       rc = CR_ERROR;
       goto cleanup;
     }
@@ -5031,7 +5031,7 @@ static int gssapi_kerberos_auth_client(const char *spn,
       if (r_len < 0)
       {
         rc = CR_ERROR;
-        gss_dbug_error(major, minor);
+        GSS_DBUG_ERROR(major, minor);
         goto cleanup;
       }
     }
@@ -5076,7 +5076,7 @@ static int kerberos_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
   r_len = vio->read_packet(vio, (unsigned char **) &spn);
   if (r_len < 0)
   {
-    gss_dbug_error(major, minor);
+    DBUG_PRINT("kerberos", ("fail to read service principal name."));
     DBUG_RETURN(CR_ERROR);
   }
   strncpy(spn_buff, spn, PRINCIPAL_NAME_LEN);

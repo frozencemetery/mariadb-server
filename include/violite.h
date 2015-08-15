@@ -236,7 +236,30 @@ enum SSL_type
 };
 
 #ifdef HAVE_GSSAPI
-void gss_dbug_error(OM_uint32 major, OM_uint32 minor);
+#define GSS_DBUG_ERROR(major, minor)                                \
+  do {                                                              \
+    gss_buffer_desc db_input;                                       \
+    OM_uint32 resmajor = major, resminor = minor;                   \
+    OM_uint32 cont = 0;                                             \
+                                                                    \
+    do {                                                            \
+      db_input.length = 0;                                          \
+      db_input.value = NULL;                                        \
+      major = gss_display_status(&minor, resmajor, GSS_C_GSS_CODE,  \
+                                 GSS_C_NO_OID, &cont, &input);      \
+      DBUG_PRINT("gsserror", ("%s", (char *) db_input.value));      \
+      major = gss_release_buffer(&minor, &input);                   \
+    } while (cont != 0);                                            \
+    cont = 0;                                                       \
+    do {                                                            \
+      db_input.length = 0;                                          \
+      db_input.value = NULL;                                        \
+      major = gss_display_status(&minor, resminor, GSS_C_MECH_CODE, \
+                                 GSS_C_NO_OID, &cont, &db_input);   \
+      DBUG_PRINT("gsserror", ("%s", (char *) db_input.value));      \
+      major = gss_release_buffer(&minor, &db_input);                \
+    } while (cont != 0);                                            \
+  } while (0);
 #endif
 
 /* HFTODO - hide this if we don't want client in embedded server */
