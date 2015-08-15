@@ -23,22 +23,20 @@
 
 #ifdef HAVE_GSSAPI
 
-static void error_msg(OM_uint32 major, OM_uint32 minor)
+static void vio_gss_log_error(OM_uint32 major, OM_uint32 minor)
 {
   gss_buffer_desc input;
   OM_uint32 resmajor = major, resminor = minor;
   OM_uint32 cont = 0;
 
-  DBUG_ENTER("error_msg");
-
-  DBUG_PRINT("error", ("TODO(rharwood) better error reporting\n"));
+  DBUG_ENTER("vio_gss_log_error");
 
   do {
     input.length = 0;
     input.value = NULL;
     major = gss_display_status(&minor, resmajor, GSS_C_GSS_CODE,
                                GSS_C_NO_OID, &cont, &input);
-    DBUG_PRINT("error", ("UH-OH: %s", input.value));
+    DBUG_PRINT("gsserror", ((char *) input.value));
     major = gss_release_buffer(&minor, &input);
   } while (cont != 0);
   cont = 0;
@@ -47,7 +45,7 @@ static void error_msg(OM_uint32 major, OM_uint32 minor)
     input.value = NULL;
     major = gss_display_status(&minor, resminor, GSS_C_MECH_CODE,
                                GSS_C_NO_OID, &cont, &input);
-    DBUG_PRINT("error", ("uh-oh: %s", input.value));
+    DBUG_PRINT("gsserror", ((char *) input.value));
     major = gss_release_buffer(&minor, &input);
   } while (cont != 0);
 
@@ -111,7 +109,8 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   packet_size = ntohl(packet_size);
   if (packet_size > VIO_READ_BUFFER_SIZE - 4)
   {
-    DBUG_PRINT("cleanup", ("TODO(rharwood) why you gots to be malicious :(\n"));
+    DBUG_PRINT("vio_gss_read", ("declared packet size larger than read buffer!"));
+    DBUG_RETURN(-1);
   }
 
   missing = me->read_pos + packet_size + 4 - me->read_end;
@@ -136,13 +135,13 @@ size_t vio_gss_read(Vio *me, uchar *buf, size_t n)
   major = gss_unwrap(&minor, me->gss_ctxt, &input, &output, &conf, NULL);
   if (GSS_ERROR(major))
   {
-    error_msg(major, minor);
-    DBUG_PRINT("gssapi", ("TODO(rharwood) crypto is hard\n"));
+    vio_gss_log_error(major, minor);
+    DBUG_RETURN(-1);
   }
   else if (conf == 0)
   {
-    error_msg(major, minor);
-    DBUG_PRINT("gssapi", ("TODO(rharwood) like, *really* hard\n"));
+    vio_gss_log_error(major, minor);
+    DBUG_RETURN(-1);
   }
 
   /* DBUG_ASSERT(output.length <= packet_size + 4); */
@@ -179,13 +178,13 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
 		   &conf, &output);
   if (GSS_ERROR(major))
   {
-    error_msg(major, minor);
-    DBUG_PRINT("gssapi", ("TODO(rharwood) handle\n"));
+    vio_gss_log_error(major, minor);
+    DBUG_RETURN(-1);
   }
   else if (!conf)
   {
-    error_msg(major, minor);
-    DBUG_PRINT("gssapi", ("TODO(rharwood) bail?\n"));
+    vio_gss_log_error(major, minor);
+    DBUG_RETURN(-1);
   }
 
   /*
@@ -209,19 +208,19 @@ size_t vio_gss_write(Vio *me, const uchar *buf, size_t len)
   memcpy(send_buf, &packetlen, 4);
   memcpy(send_buf + 4, output.value, output.length);
 
-  ret = vio_write(me, send_buf, output.length + 4);
-
+  /*
+    Mandatory blocking here.  What we consider a "packet" does not match what
+    our caller considers a packet, since encryption increases the length.
+  */
+  ret = mysql_socket_send(me->mysql_socket, (SOCKBUF_T *) send_buf,
+                          output.length + 4, 0);
   major = gss_release_buffer(&minor, &output);
-
   if (htonl(ret - 4) == packetlen)
     DBUG_RETURN(len);
   else if (ret < 0)
     DBUG_RETURN(ret);
   else
-  {
-    DBUG_PRINT("idiocy", ("TODO(rharwood) call mysql_socket_send here\n"));
-    DBUG_RETURN(-1);
-  }
+    DBUG_ASSERT(0);
 }
 
 int vio_gss_close(Vio *me)
