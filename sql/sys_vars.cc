@@ -4822,3 +4822,19 @@ static Sys_var_mybool Sys_pseudo_slave_mode(
        SESSION_ONLY(pseudo_slave_mode), NO_CMD_LINE, DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_pseudo_slave_mode));
 
+#ifdef HAVE_GSSAPI
+static Sys_var_charptr Sys_kerberos_principal_name(
+       "kerberos_principal_name",
+       "Kerberos principal used with GSSAPI "
+       "(e.g., MySql/myhost.domain@REALM.DOMAIN)",
+       GLOBAL_VAR(kerberos_principal_name_ptr),
+       CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_charptr Sys_kerberos_keytab_path(
+       "kerberos_keytab_path",
+       "path to Kerberos keytab used with GSSAPI "
+       "(default to reading $KRB5_KTNAME)",
+       READ_ONLY GLOBAL_VAR(kerberos_keytab_path_ptr),
+       CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET,
+       DEFAULT(""));
+#endif /* HAVE_GSSAPI */
