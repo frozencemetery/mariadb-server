@@ -908,9 +908,9 @@ static bool fix_user_plugin_ptr(LEX_STRING *plugin_ptr)
                     old_password_plugin_name.str) == 0)
     *plugin_ptr= old_password_plugin_name;
   else
-  if (my_strcasecmp(system_charset_info, user->plugin.str,
+  if (my_strcasecmp(system_charset_info, plugin_ptr->str,
                     kerberos_plugin_name.str) == 0)
-    user->plugin= kerberos_plugin_name;
+    *plugin_ptr= kerberos_plugin_name;
   else
     return true;
 
@@ -12525,7 +12525,6 @@ static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
   int rc= CR_OK; /* return code */
   int have_cred= FALSE;
   int have_ctxt= FALSE;
-  const char *err_msg= NULL; /* error message text */
   /* GSSAPI related fields */
   OM_uint32 major= 0, minor= 0, flags= 0;
   gss_cred_id_t cred; /* credential identifier */
